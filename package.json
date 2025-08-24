@@ -1,0 +1,34 @@
+{
+  "name": "memo-management-system",
+  "version": "1.0.0",
+  "description": "메모리 기반 메모 관리 시스템 with REST API and Swagger",
+  "main": "memo.js",
+  "scripts": {
+    "start": "node memo.js",
+    "dev": "nodemon memo.js",
+    "start:prod": "NODE_ENV=production HOST=0.0.0.0 node memo.js",
+    "start:custom": "node memo.js",
+    "pm2:start": "pm2 start memo.js --name memo-system",
+    "pm2:stop": "pm2 stop memo-system",
+    "pm2:restart": "pm2 restart memo-system",
+    "pm2:logs": "pm2 logs memo-system",
+    "pm2:delete": "pm2 delete memo-system"
+  },
+  "keywords": [
+    "memo",
+    "rest-api",
+    "swagger",
+    "nodejs"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "swagger-jsdoc": "^6.2.8"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
