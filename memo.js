@@ -11,31 +11,60 @@ function getServerConfig() {
   // 환경 변수에서 포트 가져오기 (기본값: 8083)
   const PORT = process.env.PORT || 8083;
   
+  // 환경 변수에서 HOST 설정이 있으면 우선 사용
+  if (process.env.HOST) {
+    return {
+      port: PORT,
+      host: process.env.HOST,
+      localIP: process.env.HOST
+    };
+  }
+  
   // 로컬 IP 주소들 가져오기
   const networkInterfaces = os.networkInterfaces();
   let localIP = 'localhost';
+  let publicIP = null;
   
-  // 외부 접근 가능한 IP 주소 찾기
+  // 네트워크 인터페이스에서 IP 주소 찾기
   for (const interfaceName in networkInterfaces) {
     const interfaces = networkInterfaces[interfaceName];
     for (const interface of interfaces) {
-      // IPv4이고 내부 루프백이 아닌 주소 찾기
       if (interface.family === 'IPv4' && !interface.internal) {
-        localIP = interface.address;
-        break;
+        const ip = interface.address;
+        
+        // 퍼블릭 IP 범위 확인 (RFC 1918 제외)
+        if (!isPrivateIP(ip)) {
+          publicIP = ip;
+          break; // 퍼블릭 IP를 찾으면 우선 사용
+        } else if (localIP === 'localhost') {
+          localIP = ip; // 프라이빗 IP는 백업으로 저장
+        }
       }
     }
-    if (localIP !== 'localhost') break;
+    if (publicIP) break; // 퍼블릭 IP를 찾았으면 중단
   }
   
-  // 환경 변수에서 HOST 설정이 있으면 사용
-  const HOST = process.env.HOST || localIP;
+  // 퍼블릭 IP가 있으면 사용, 없으면 프라이빗 IP 사용
+  const HOST = publicIP || localIP;
   
   return {
     port: PORT,
     host: HOST,
-    localIP: localIP
+    localIP: localIP,
+    publicIP: publicIP
   };
+}
+
+// 프라이빗 IP 주소인지 확인하는 함수
+function isPrivateIP(ip) {
+  const parts = ip.split('.').map(part => parseInt(part));
+  
+  // RFC 1918 프라이빗 IP 범위
+  return (
+    (parts[0] === 10) ||
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+    (parts[0] === 192 && parts[1] === 168)
+  );
 }
 
 const serverConfig = getServerConfig();
@@ -52,12 +81,20 @@ const swaggerOptions = {
     servers: [
       {
         url: `http://${serverConfig.host}:${serverConfig.port}`,
-        description: '메모 관리 서버',
+        description: serverConfig.publicIP ? '퍼블릭 서버 (외부 접근)' : '메모 관리 서버',
       },
       {
         url: `http://localhost:${serverConfig.port}`,
         description: '로컬 개발 서버',
       },
+      ...(serverConfig.publicIP && serverConfig.publicIP !== serverConfig.host ? [{
+        url: `http://${serverConfig.publicIP}:${serverConfig.port}`,
+        description: '퍼블릭 IP 서버',
+      }] : []),
+      ...(serverConfig.localIP && serverConfig.localIP !== serverConfig.host ? [{
+        url: `http://${serverConfig.localIP}:${serverConfig.port}`,
+        description: '프라이빗 IP 서버',
+      }] : []),
     ],
   },
   apis: ['./memo.js'],
@@ -201,6 +238,7 @@ http.createServer(async (req, res) => {
           host: serverConfig.host,
           port: serverConfig.port,
           localIP: serverConfig.localIP,
+          publicIP: serverConfig.publicIP,
           environment: process.env.NODE_ENV || 'development'
         }));
       }
